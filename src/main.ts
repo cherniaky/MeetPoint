@@ -26,13 +26,39 @@ const servers = {
 
 let pc = new RTCPeerConnection(servers);
 
-let localStream = null;
-let remoteStream = null;
+let localStream: null | MediaStream = null;
+let remoteStream: null | MediaStream = null;
 
-const webcamButton = document.getElementById('webcamButton');
-const webcamVideo = document.getElementById('webcamVideo');
-const callButton = document.getElementById('callButton');
-const callInput = document.getElementById('callInput');
-const answerButton = document.getElementById('answerButton');
-const remoteVideo = document.getElementById('remoteVideo');
-const hangupButton = document.getElementById('hangupButton');
+const webcamButton = document.getElementById("webcamButton");
+const webcamVideo = document.getElementById("webcamVideo") as HTMLVideoElement;
+const callButton = document.getElementById("callButton");
+const callInput = document.getElementById("callInput");
+const answerButton = document.getElementById("answerButton");
+const remoteVideo = document.getElementById("remoteVideo") as HTMLVideoElement;
+const hangupButton = document.getElementById("hangupButton");
+
+if (webcamButton) {
+    webcamButton.onclick = async () => {
+        localStream = await navigator.mediaDevices.getUserMedia({
+            video: true,
+            audio: true,
+        });
+        remoteStream = new MediaStream();
+
+        localStream.getTracks().forEach((track) => {
+            if (localStream) {
+                pc.addTrack(track, localStream);
+            }
+        });
+        pc.ontrack = (event) => {
+            event.streams[0].getTracks().forEach((track) => {
+                remoteStream?.addTrack(track);
+            });
+        };
+
+        if (webcamVideo && remoteVideo) {
+            webcamVideo.srcObject = localStream;
+            remoteVideo.srcObject = remoteStream;
+        }
+    };
+}
