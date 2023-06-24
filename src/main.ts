@@ -1,5 +1,14 @@
 import "./style.css";
 import { initializeApp } from "firebase/app";
+import {
+    addDoc,
+    collection,
+    doc,
+    getDoc,
+    getFirestore,
+    onSnapshot,
+    setDoc,
+} from "firebase/firestore";
 
 const firebaseConfig = {
     apiKey: "AIzaSyBVz8IuV_wa-YdfkFiIoQXQmIDqljvahQ8",
@@ -11,7 +20,8 @@ const firebaseConfig = {
 };
 
 const app = initializeApp(firebaseConfig);
-
+const db = getFirestore(app);
+// db.toJSON()
 const servers = {
     iceServers: [
         {
@@ -29,13 +39,19 @@ let pc = new RTCPeerConnection(servers);
 let localStream: null | MediaStream = null;
 let remoteStream: null | MediaStream = null;
 
-const webcamButton = document.getElementById("webcamButton");
+const webcamButton = document.getElementById(
+    "webcamButton"
+) as HTMLButtonElement;
 const webcamVideo = document.getElementById("webcamVideo") as HTMLVideoElement;
-const callButton = document.getElementById("callButton");
-const callInput = document.getElementById("callInput");
-const answerButton = document.getElementById("answerButton");
+const callButton = document.getElementById("callButton") as HTMLButtonElement;
+const callInput = document.getElementById("callInput") as HTMLInputElement;
+const answerButton = document.getElementById(
+    "answerButton"
+) as HTMLButtonElement;
 const remoteVideo = document.getElementById("remoteVideo") as HTMLVideoElement;
-const hangupButton = document.getElementById("hangupButton");
+const hangupButton = document.getElementById(
+    "hangupButton"
+) as HTMLButtonElement;
 
 if (webcamButton) {
     webcamButton.onclick = async () => {
@@ -60,5 +76,109 @@ if (webcamButton) {
             webcamVideo.srcObject = localStream;
             remoteVideo.srcObject = remoteStream;
         }
+
+        callButton.disabled = false;
+        answerButton.disabled = false;
+        webcamButton.disabled = true;
+    };
+}
+
+if (callButton) {
+    callButton.onclick = async () => {
+        const callDoc = await addDoc(collection(db, "calls"), {});
+        const offerCandidates = collection(
+            db,
+            "calls",
+            callDoc.id,
+            "offerCandidates"
+        );
+        const answerCandidates = collection(
+            db,
+            "calls",
+            callDoc.id,
+            "answerCandidates"
+        );
+
+        callInput.value = callDoc.id;
+
+        pc.onicecandidate = async (event) => {
+            event.candidate &&
+                (await addDoc(offerCandidates, event.candidate.toJSON()));
+        };
+        const offerDescription = await pc.createOffer();
+        await pc.setLocalDescription(offerDescription);
+
+        const offer = {
+            sdp: offerDescription.sdp,
+            type: offerDescription.type,
+        };
+
+        await setDoc(callDoc, { offer });
+
+        onSnapshot(callDoc, (doc) => {
+            const data = doc.data();
+            if (!pc.currentLocalDescription && data?.answer) {
+                const answerDescriptor = new RTCSessionDescription(data.answer);
+                pc.setRemoteDescription(answerDescriptor);
+            }
+        });
+
+        onSnapshot(answerCandidates, (snapshot) => {
+            snapshot.docChanges().forEach((change) => {
+                if (change.type === "added") {
+                    const candidate = new RTCIceCandidate(change.doc.data());
+                    pc.addIceCandidate(candidate);
+                }
+            });
+        });
+        hangupButton.disabled = false;
+    };
+}
+
+if (answerButton) {
+    answerButton.onclick = async () => {
+        const callId = callInput.value;
+        const callDoc = doc(db, "calls", callId);
+        const answerCandidates = collection(
+            db,
+            "calls",
+            callId,
+            "answerCandidates"
+        );
+        const offerCandidates = collection(
+            db,
+            "calls",
+            callId,
+            "offerCandidates"
+        );
+
+        pc.onicecandidate = async (event) => {
+            event.candidate &&
+                (await addDoc(answerCandidates, event.candidate.toJSON()));
+        };
+        const callData = (await getDoc(callDoc)).data();
+        const offerDescription = callData?.offer;
+        await pc.setRemoteDescription(
+            new RTCSessionDescription(offerDescription)
+        );
+
+        const answerDescriptor = await pc.createAnswer();
+        await pc.setLocalDescription(answerDescriptor);
+
+        const answer = {
+            type: answerDescriptor.type,
+            sdp: answerDescriptor.sdp,
+        };
+
+        await setDoc(callDoc, { answer });
+
+        onSnapshot(offerCandidates, (snapshot) => {
+            snapshot.docChanges().forEach((change) => {
+                if (change.type === "added") {
+                    const candidate = new RTCIceCandidate(change.doc.data());
+                    pc.addIceCandidate(candidate);
+                }
+            });
+        });
     };
 }
