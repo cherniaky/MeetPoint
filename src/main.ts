@@ -8,6 +8,7 @@ import {
     getFirestore,
     onSnapshot,
     setDoc,
+    updateDoc,
 } from "firebase/firestore";
 
 const firebaseConfig = {
@@ -170,7 +171,7 @@ if (answerButton) {
             sdp: answerDescriptor.sdp,
         };
 
-        await setDoc(callDoc, { answer });
+        await updateDoc(callDoc, { answer });
 
         onSnapshot(offerCandidates, (snapshot) => {
             snapshot.docChanges().forEach((change) => {
