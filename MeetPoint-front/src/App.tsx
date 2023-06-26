@@ -1,9 +1,9 @@
 import { useState, useEffect } from "react";
 import "./App.css";
 import uniqid from "uniqid";
+import { isValidHttpUrl } from "./utils";
 
 function App() {
-    const [count, setCount] = useState(0);
     const [userName, setUsername] = useState("");
     const [mid, setMid] = useState("");
     const [inputValue, setInputValue] = useState("");
@@ -35,7 +35,7 @@ function App() {
                 <button
                     onClick={() => {
                         if (inputValue) {
-                            const midValue = inputValue.includes("?")
+                            const midValue = isValidHttpUrl(inputValue)
                                 ? new URLSearchParams(
                                       new URL(inputValue).search
                                   ).get("mid") || ""
