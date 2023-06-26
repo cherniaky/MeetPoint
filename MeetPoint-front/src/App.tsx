@@ -2,11 +2,14 @@ import { useState, useEffect } from "react";
 import "./App.css";
 import uniqid from "uniqid";
 import { isValidHttpUrl } from "./utils";
+import { useNavigate } from "react-router-dom";
 
 function App() {
     const [userName, setUsername] = useState("");
+    const [userNameInput, setUsernameInput] = useState("");
     const [mid, setMid] = useState("");
     const [inputValue, setInputValue] = useState("");
+    const navigate = useNavigate();
 
     useEffect(() => {
         const urlParams = new URLSearchParams(window.location.search);
@@ -17,7 +20,35 @@ function App() {
     }, []);
 
     if (mid) {
-        return <div>Meeting time</div>;
+        return (
+            <div>
+                {!userName ? (
+                    <div>
+                        Please type your name
+                        <input
+                            type="text"
+                            value={userNameInput}
+                            onChange={(e) => {
+                                setUsernameInput(e.target.value);
+                            }}
+                        />
+                        <button
+                            disabled={!userNameInput}
+                            onClick={() => {
+                                setUsername(userNameInput);
+                                navigate(
+                                    "/?mid=" + mid + "&uid=" + userNameInput
+                                );
+                            }}
+                        >
+                            Submit
+                        </button>
+                    </div>
+                ) : (
+                    <div>you are in meeting</div>
+                )}
+            </div>
+        );
     }
 
     return (
@@ -41,6 +72,8 @@ function App() {
                                   ).get("mid") || ""
                                 : inputValue;
                             window.location.search = "?mid=" + midValue;
+                            // navigate("/?mid=" + midValue);
+                            // setMid(midValue);
                         }
                     }}
                 >
@@ -49,6 +82,9 @@ function App() {
                 <button
                     onClick={() => {
                         window.location.search = "?mid=" + uniqid();
+                        // const newmid = uniqid();
+                        // navigate("/?mid=" + newmid);
+                        // setMid(newmid);
                     }}
                 >
                     Create
