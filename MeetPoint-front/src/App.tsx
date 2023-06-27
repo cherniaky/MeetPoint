@@ -3,12 +3,22 @@ import "./App.css";
 import uniqid from "uniqid";
 import { isValidHttpUrl } from "./utils";
 import { useNavigate } from "react-router-dom";
+import { sendDataToConnection, socket } from "./socket";
+
+type IUser = {
+    user_id: string;
+    userName: string;
+};
 
 function App() {
     const [userName, setUsername] = useState("");
     const [userNameInput, setUsernameInput] = useState("");
     const [mid, setMid] = useState("");
     const [inputValue, setInputValue] = useState("");
+    const [isMuted, setIsMuted] = useState(false);
+    const [users, setUsers] = useState<IUser[]>([]);
+    const [audioTrack, setAudioTrack] = useState<null | MediaStreamTrack>(null);
+
     const navigate = useNavigate();
 
     useEffect(() => {
@@ -17,7 +27,34 @@ function App() {
         const uid = urlParams.get("uid");
         if (uid) setUsername(uid);
         if (mid) setMid(mid);
+        socket.on("connect", () => {
+            if (socket.connected) {
+                // WrtcHelper.init(sendDataToConnection, socket.id);
+
+                if (userName && mid) {
+                    socket.emit("newUser", {
+                        userName,
+                        mid,
+                    });
+                }
+            }
+        });
+
+        socket.on("userConnected", (data) => {
+            setUsers((prev) => [...prev, data]);
+        });
     }, []);
+
+    async function startAudio() {
+        const astream = await navigator.mediaDevices.getUserMedia({
+            audio: true,
+            video: false,
+        });
+        const track = astream.getAudioTracks()[0];
+        track.enabled = false;
+        setAudioTrack(track);
+        return track;
+    }
 
     if (mid) {
         return (
@@ -45,7 +82,61 @@ function App() {
                         </button>
                     </div>
                 ) : (
-                    <div>you are in meeting</div>
+                    <div>
+                        you are in meeting: {mid}
+                        <div className="usersVideos">
+                            <div>
+                                <h2>{userName}(me)</h2>
+                                <video autoPlay muted id={"myVideo"}></video>
+                            </div>
+                            {users.map((user) => {
+                                return (
+                                    <div>
+                                        <h2>{user.userName}</h2>
+                                        <video
+                                            autoPlay
+                                            muted
+                                            id={"video-" + user.user_id}
+                                        ></video>
+                                        <audio
+                                            autoPlay
+                                            controls
+                                            style={{ display: "none" }}
+                                            id={"audio-" + user.user_id}
+                                        ></audio>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                        <div className="controls">
+                            {" "}
+                            <button
+                                onClick={async () => {
+                                    let track = null;
+                                    if (!audioTrack) {
+                                        track = await startAudio();
+                                    }
+                                    if (!track) {
+                                        alert("problem with audio");
+                                        return;
+                                    }
+
+                                    if (isMuted) {
+                                        track.enabled = true;
+                                        setAudioTrack(audioTrack);
+                                    } else {
+                                        track.enabled = false;
+                                    }
+                                    setIsMuted((prev) => !prev);
+                                }}
+                            >
+                                {" "}
+                                {isMuted ? <>Ummute</> : <>Mute</>}
+                            </button>
+                            <button>Start Camera</button>
+                            <button>Screen Share</button>
+                        </div>
+                    </div>
                 )}
             </div>
         );
