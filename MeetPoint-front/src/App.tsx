@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import "./App.css";
 import uniqid from "uniqid";
 import { isValidHttpUrl } from "./utils";
@@ -9,16 +9,22 @@ type IUser = {
     user_id: string;
     userName: string;
 };
-
+enum VideoState {
+    None = 0,
+    Camera = 1,
+    ScreenShare = 2,
+}
 function App() {
     const [userName, setUsername] = useState("");
     const [userNameInput, setUsernameInput] = useState("");
     const [mid, setMid] = useState("");
     const [inputValue, setInputValue] = useState("");
     const [isMuted, setIsMuted] = useState(false);
+    const [videoState, setVideoState] = useState<VideoState>(VideoState.None);
     const [users, setUsers] = useState<IUser[]>([]);
+    const myVideoRef = useRef<null | HTMLVideoElement>(null);
     const [audioTrack, setAudioTrack] = useState<null | MediaStreamTrack>(null);
-
+    const [videoTrack, setVideoTrack] = useState<null | MediaStreamTrack>(null);
     const navigate = useNavigate();
 
     useEffect(() => {
@@ -45,6 +51,71 @@ function App() {
         });
     }, []);
 
+    useEffect(() => {
+        if (audioTrack) {
+            if (isMuted) {
+                audioTrack.enabled = true;
+            } else {
+                audioTrack.enabled = false;
+            }
+            setAudioTrack(audioTrack);
+        }
+    }, [isMuted]);
+
+    useEffect(() => {
+        (async () => {
+            if (videoState === VideoState.None) {
+                clearCurrentVideoStream();
+            } else {
+                try {
+                    let vstream = null;
+
+                    if (videoState === VideoState.Camera) {
+                        vstream = await navigator.mediaDevices.getUserMedia({
+                            video: {
+                                width: 720,
+                                height: 480,
+                            },
+                            audio: false,
+                        });
+                    } else if (videoState === VideoState.ScreenShare) {
+                        vstream = await navigator.mediaDevices.getDisplayMedia({
+                            video: {
+                                width: 720,
+                                height: 480,
+                            },
+                            audio: false,
+                        });
+                    }
+                    clearCurrentVideoStream();
+
+                    if (vstream && vstream.getVideoTracks().length > 0) {
+                        setVideoTrack(vstream.getVideoTracks()[0]);
+                    }
+                } catch (error) {
+                    console.log(error);
+                }
+            }
+        })();
+    }, [videoState]);
+
+    useEffect(() => {
+        if (myVideoRef.current) {
+            if (videoTrack) {
+                myVideoRef.current.srcObject = new MediaStream([videoTrack]);
+            } else {
+                myVideoRef.current.srcObject = null;
+            }
+        }
+    }, [videoTrack]);
+
+    const clearCurrentVideoStream = () => {
+        videoTrack?.stop();
+        setVideoTrack(null);
+        if (myVideoRef.current) {
+            // myVideoRef.current.srcObject = null;
+        }
+    };
     async function startAudio() {
         const astream = await navigator.mediaDevices.getUserMedia({
             audio: true,
@@ -53,7 +124,6 @@ function App() {
         const track = astream.getAudioTracks()[0];
         track.enabled = false;
         setAudioTrack(track);
-        return track;
     }
 
     if (mid) {
@@ -87,7 +157,12 @@ function App() {
                         <div className="usersVideos">
                             <div>
                                 <h2>{userName}(me)</h2>
-                                <video autoPlay muted id={"myVideo"}></video>
+                                <video
+                                    autoPlay
+                                    muted
+                                    ref={myVideoRef}
+                                    id={"myVideo"}
+                                ></video>
                             </div>
                             {users.map((user) => {
                                 return (
@@ -112,20 +187,8 @@ function App() {
                             {" "}
                             <button
                                 onClick={async () => {
-                                    let track = null;
                                     if (!audioTrack) {
-                                        track = await startAudio();
-                                    }
-                                    if (!track) {
-                                        alert("problem with audio");
-                                        return;
-                                    }
-
-                                    if (isMuted) {
-                                        track.enabled = true;
-                                        setAudioTrack(audioTrack);
-                                    } else {
-                                        track.enabled = false;
+                                        await startAudio();
                                     }
                                     setIsMuted((prev) => !prev);
                                 }}
@@ -133,8 +196,32 @@ function App() {
                                 {" "}
                                 {isMuted ? <>Ummute</> : <>Mute</>}
                             </button>
-                            <button>Start Camera</button>
-                            <button>Screen Share</button>
+                            <button
+                                onClick={() => {
+                                    setVideoState(
+                                        videoState === VideoState.Camera
+                                            ? VideoState.None
+                                            : VideoState.Camera
+                                    );
+                                }}
+                            >
+                                {videoState === VideoState.Camera
+                                    ? "Stop Camera"
+                                    : "Start Camera"}
+                            </button>
+                            <button
+                                onClick={() => {
+                                    setVideoState(
+                                        videoState === VideoState.ScreenShare
+                                            ? VideoState.None
+                                            : VideoState.ScreenShare
+                                    );
+                                }}
+                            >
+                                {videoState === VideoState.ScreenShare
+                                    ? "Stop Sreen Share"
+                                    : "Screen Share"}
+                            </button>
                         </div>
                     </div>
                 )}
