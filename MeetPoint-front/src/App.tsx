@@ -4,6 +4,11 @@ import uniqid from "uniqid";
 import { isValidHttpUrl } from "./utils";
 import { useNavigate } from "react-router-dom";
 import { sendDataToConnection, socket } from "./socket";
+import MicIcon from "@mui/icons-material/Mic";
+import MicOffIcon from "@mui/icons-material/MicOff";
+import VideocamIcon from "@mui/icons-material/Videocam";
+import VideocamOffIcon from "@mui/icons-material/VideocamOff";
+import PresentToAllIcon from "@mui/icons-material/PresentToAll";
 
 type IUser = {
     user_id: string;
@@ -68,21 +73,23 @@ function App() {
                 clearCurrentVideoStream();
             } else {
                 try {
-                    let vstream = null;
+                    let vstream: MediaStream | null = null;
 
                     if (videoState === VideoState.Camera) {
                         vstream = await navigator.mediaDevices.getUserMedia({
                             video: {
-                                width: 720,
-                                height: 480,
+                                // width: 1080,
+                                // height: window.,
+                                aspectRatio: 16 / 9,
+                                noiseSuppression: true,
                             },
                             audio: false,
                         });
                     } else if (videoState === VideoState.ScreenShare) {
                         vstream = await navigator.mediaDevices.getDisplayMedia({
                             video: {
-                                width: 720,
-                                height: 480,
+                                aspectRatio: 16 / 9,
+                                noiseSuppression: true,
                             },
                             audio: false,
                         });
@@ -112,10 +119,8 @@ function App() {
     const clearCurrentVideoStream = () => {
         videoTrack?.stop();
         setVideoTrack(null);
-        if (myVideoRef.current) {
-            // myVideoRef.current.srcObject = null;
-        }
     };
+
     async function startAudio() {
         const astream = await navigator.mediaDevices.getUserMedia({
             audio: true,
@@ -152,17 +157,33 @@ function App() {
                         </button>
                     </div>
                 ) : (
-                    <div>
-                        you are in meeting: {mid}
+                    <div
+                        style={{
+                            backgroundColor: "#202124",
+                            color: "white",
+                            height: "100vh",
+                            paddingTop: "20px",
+                        }}
+                    >
+                        {/* you are in meeting: {mid} */}
                         <div className="usersVideos">
-                            <div>
-                                <h2>{userName}(me)</h2>
+                            <div style={{ height: "min" }}>
                                 <video
                                     autoPlay
                                     muted
                                     ref={myVideoRef}
                                     id={"myVideo"}
+                                    style={{
+                                        backgroundColor: "black",
+                                        borderRadius: "10px",
+                                        transform:
+                                            videoState === VideoState.Camera
+                                                ? "scaleX(-1)"
+                                                : "",
+                                        width: "90vw",
+                                    }}
                                 ></video>
+                                <h4>{userName}</h4>
                             </div>
                             {users.map((user) => {
                                 return (
@@ -186,6 +207,7 @@ function App() {
                         <div className="controls">
                             {" "}
                             <button
+                                className={`${isMuted ? "inactive" : ""}`}
                                 onClick={async () => {
                                     if (!audioTrack) {
                                         await startAudio();
@@ -194,9 +216,18 @@ function App() {
                                 }}
                             >
                                 {" "}
-                                {isMuted ? <>Ummute</> : <>Mute</>}
+                                {isMuted ? (
+                                    <MicOffIcon fontSize="small" />
+                                ) : (
+                                    <MicIcon fontSize="small" />
+                                )}
                             </button>
                             <button
+                                className={`${
+                                    videoState !== VideoState.Camera
+                                        ? "inactive"
+                                        : ""
+                                }`}
                                 onClick={() => {
                                     setVideoState(
                                         videoState === VideoState.Camera
@@ -205,11 +236,18 @@ function App() {
                                     );
                                 }}
                             >
-                                {videoState === VideoState.Camera
-                                    ? "Stop Camera"
-                                    : "Start Camera"}
+                                {videoState === VideoState.Camera ? (
+                                    <VideocamIcon fontSize="small" />
+                                ) : (
+                                    <VideocamOffIcon fontSize="small" />
+                                )}
                             </button>
                             <button
+                                className={`${
+                                    videoState === VideoState.ScreenShare
+                                        ? "presenting"
+                                        : ""
+                                }`}
                                 onClick={() => {
                                     setVideoState(
                                         videoState === VideoState.ScreenShare
@@ -218,9 +256,7 @@ function App() {
                                     );
                                 }}
                             >
-                                {videoState === VideoState.ScreenShare
-                                    ? "Stop Sreen Share"
-                                    : "Screen Share"}
+                                <PresentToAllIcon fontSize="small" />
                             </button>
                         </div>
                     </div>
