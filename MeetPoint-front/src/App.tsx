@@ -9,6 +9,7 @@ import MicOffIcon from "@mui/icons-material/MicOff";
 import VideocamIcon from "@mui/icons-material/Videocam";
 import VideocamOffIcon from "@mui/icons-material/VideocamOff";
 import PresentToAllIcon from "@mui/icons-material/PresentToAll";
+import CallEndIcon from "@mui/icons-material/CallEnd";
 
 type IUser = {
     user_id: string;
@@ -174,13 +175,15 @@ function App() {
                                     ref={myVideoRef}
                                     id={"myVideo"}
                                     style={{
-                                        backgroundColor: "black",
+                                        backgroundColor: "transparent",
                                         borderRadius: "10px",
                                         transform:
                                             videoState === VideoState.Camera
                                                 ? "scaleX(-1)"
                                                 : "",
-                                        width: "90vw",
+                                        maxWidth: "90vw",
+                                        maxHeight: "80vh",
+                                        aspectRatio: "16/ 9",
                                     }}
                                 ></video>
                                 <h4>{userName}</h4>
@@ -257,6 +260,15 @@ function App() {
                                 }}
                             >
                                 <PresentToAllIcon fontSize="small" />
+                            </button>
+                            <button
+                                className="inactive"
+                                style={{ width: "56px" }}
+                                onClick={() => {
+                                    setMid("");
+                                }}
+                            >
+                                <CallEndIcon />
                             </button>
                         </div>
                     </div>

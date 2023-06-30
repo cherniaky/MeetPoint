@@ -31,9 +31,10 @@
   background-color: rgb(60, 64, 67);
   border: none;
   padding: 10px;
-  border-radius: 50%;
+  border-radius: 20px;
   display: flex;
   align-items: center;
+  justify-content: center;
   color: white;
   cursor: pointer;
 }
@@ -41,8 +42,9 @@
 .controls>button.inactive {
   background-color: #c5221f;
 }
-.controls>button.presenting  {
-  background-color:rgb(138,180,248);
+
+.controls>button.presenting {
+  background-color: rgb(138, 180, 248);
   color: black;
 }
 
