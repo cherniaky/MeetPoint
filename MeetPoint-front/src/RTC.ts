@@ -7,3 +7,25 @@ export const iceConfiguration = {
         { urls: "stun:stun4.l.google.com:19302" },
     ],
 };
+
+export const connectedPeers: {
+    [key: string]: RTCPeerConnection;
+} = {};
+export const connectedPeersIds: Array<string> = [];
+export const remoteVideoStreams: {
+    [key: string]: MediaStream;
+} = {};
+export const remoteAudioStreams: {
+    [key: string]: MediaStream;
+} = {};
+
+export function isConnectionAvailable(connection: RTCPeerConnection) {
+    if (
+        connection &&
+        (connection.connectionState == "new" ||
+            connection.connectionState == "connecting" ||
+            connection.connectionState == "connected")
+    ) {
+        return true;
+    } else return false;
+}

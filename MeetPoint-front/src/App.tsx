@@ -10,6 +10,14 @@ import VideocamIcon from "@mui/icons-material/Videocam";
 import VideocamOffIcon from "@mui/icons-material/VideocamOff";
 import PresentToAllIcon from "@mui/icons-material/PresentToAll";
 import CallEndIcon from "@mui/icons-material/CallEnd";
+import {
+    connectedPeers,
+    connectedPeersIds,
+    iceConfiguration,
+    isConnectionAvailable,
+    remoteAudioStreams,
+    remoteVideoStreams,
+} from "./RTC";
 
 type IUser = {
     user_id: string;
@@ -131,6 +139,126 @@ function App() {
         track.enabled = false;
         setAudioTrack(track);
     }
+
+    async function createConnection(connectionId: string) {
+        const connection = new RTCPeerConnection(iceConfiguration);
+
+        connection.onicecandidate = function (event) {
+            if (event.candidate) {
+                sendDataToConnection(
+                    JSON.stringify({ iceCandidate: event.candidate }),
+                    connectionId
+                );
+            }
+        };
+        connection.onicecandidateerror = function (event) {
+            console.log("onicecandidateerror", event);
+        };
+        connection.onicegatheringstatechange = function (event) {
+            console.log("onicegatheringstatechange", event);
+        };
+        connection.onnegotiationneeded = async function (event) {
+            console.log("onnegotiationneeded", event);
+            await _createOffer(connectionId);
+        };
+        // New remote media stream was added
+        connection.ontrack = function (event) {
+            if (!remoteVideoStreams[connectionId]) {
+                remoteVideoStreams[connectionId] = new MediaStream();
+            }
+
+            if (!remoteAudioStreams[connectionId])
+                remoteAudioStreams[connectionId] = new MediaStream();
+
+            if (event.track.kind == "video") {
+                remoteVideoStreams[connectionId]
+                    .getVideoTracks()
+                    .forEach((t) =>
+                        remoteVideoStreams[connectionId].removeTrack(t)
+                    );
+                remoteVideoStreams[connectionId].addTrack(event.track);
+
+                const _remoteVideoPlayer = document.getElementById(
+                    "video-" + connectionId
+                ) as HTMLVideoElement;
+                _remoteVideoPlayer.srcObject = null;
+                _remoteVideoPlayer.srcObject = remoteVideoStreams[connectionId];
+                _remoteVideoPlayer.load();
+            } else if (event.track.kind == "audio") {
+                const _remoteAudioPlayer = document.getElementById(
+                    "a_" + connectionId
+                ) as HTMLAudioElement;
+                remoteAudioStreams[connectionId]
+                    .getVideoTracks()
+                    .forEach((t) =>
+                        remoteAudioStreams[connectionId].removeTrack(t)
+                    );
+                remoteAudioStreams[connectionId].addTrack(event.track);
+                _remoteAudioPlayer.srcObject = null;
+                _remoteAudioPlayer.srcObject = remoteAudioStreams[connectionId];
+                _remoteAudioPlayer.load();
+            }
+        };
+
+        connectedPeersIds.push(connectionId);
+        connectedPeers[connectionId] = connection;
+
+        if (
+            videoState == VideoState.Camera ||
+            videoState == VideoState.ScreenShare
+        ) {
+            if (videoTrack) {
+                // AddUpdateAudioVideoSenders(_videoCamSSTrack, _rtpVideoSenders);
+            }
+        }
+
+        return connection;
+    }
+
+    async function addUpdateAudioVideoSenders(track: MediaStreamTrack, rtpSenders) {
+        if (isConnectionAvailable(connectedPeers[con_id])) {
+            if (rtpSenders[con_id] && rtpSenders[con_id].track) {
+                rtpSenders[con_id].replaceTrack(track);
+            } else {
+                rtpSenders[con_id] = peers_conns[con_id].addTrack(track);
+            }
+        }
+    }
+    const acceptData = async (msg: string, fromConnectId: string) => {
+        const message = JSON.parse(msg);
+
+        if (message.answer) {
+            await connectedPeers[fromConnectId]?.setRemoteDescription(
+                new RTCSessionDescription(message.answer)
+            );
+        } else if (message.offer) {
+            if (!connectedPeers[fromConnectId]) {
+                await createConnection(fromConnectId);
+            }
+
+            await connectedPeers[fromConnectId].setRemoteDescription(
+                new RTCSessionDescription(message.offer)
+            );
+            const answer = await connectedPeers[fromConnectId].createAnswer();
+            await connectedPeers[fromConnectId].setLocalDescription(answer);
+            sendDataToConnection(
+                JSON.stringify({ answer: answer }),
+                fromConnectId
+            );
+        } else if (message.iceCandidate) {
+            if (!connectedPeers[fromConnectId]) {
+                await createConnection(fromConnectId);
+            }
+
+            try {
+                await connectedPeers[fromConnectId].addIceCandidate(
+                    message.iceCandidate
+                );
+            } catch (e) {
+                console.log(e);
+            }
+        }
+    };
 
     if (mid) {
         return (
