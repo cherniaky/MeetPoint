@@ -12,12 +12,19 @@ export const connectedPeers: {
     [key: string]: RTCPeerConnection;
 } = {};
 export const connectedPeersIds: Array<string> = [];
+
 export const remoteVideoStreams: {
     [key: string]: MediaStream;
 } = {};
 export const remoteAudioStreams: {
     [key: string]: MediaStream;
 } = {};
+
+export type rtpSenders = {
+    [key: string]: RTCRtpSender | null;
+};
+export const rtpVideoSenders: rtpSenders = {};
+export const rtpAudioSenders: rtpSenders = {};
 
 export function isConnectionAvailable(connection: RTCPeerConnection) {
     if (

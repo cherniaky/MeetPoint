@@ -17,10 +17,13 @@ import {
     isConnectionAvailable,
     remoteAudioStreams,
     remoteVideoStreams,
+    rtpAudioSenders,
+    rtpSenders,
+    rtpVideoSenders,
 } from "./RTC";
 
 type IUser = {
-    user_id: string;
+    id: string;
     userName: string;
 };
 enum VideoState {
@@ -33,7 +36,7 @@ function App() {
     const [userNameInput, setUsernameInput] = useState("");
     const [mid, setMid] = useState("");
     const [inputValue, setInputValue] = useState("");
-    const [isMuted, setIsMuted] = useState(false);
+    const [isMuted, setIsMuted] = useState(true);
     const [videoState, setVideoState] = useState<VideoState>(VideoState.None);
     const [users, setUsers] = useState<IUser[]>([]);
     const myVideoRef = useRef<null | HTMLVideoElement>(null);
@@ -49,8 +52,6 @@ function App() {
         if (mid) setMid(mid);
         socket.on("connect", () => {
             if (socket.connected) {
-                // WrtcHelper.init(sendDataToConnection, socket.id);
-
                 if (userName && mid) {
                     socket.emit("newUser", {
                         userName,
@@ -60,17 +61,31 @@ function App() {
             }
         });
 
-        socket.on("userConnected", (data) => {
-            setUsers((prev) => [...prev, data]);
+        socket.on("userConnected", (data: IUser[]) => {
+            setUsers(data);
+            data.forEach((u) => {
+                createConnection(u.id);
+            });
         });
     }, []);
 
     useEffect(() => {
+        if (userName && mid) {
+            socket.emit("newUser", {
+                userName,
+                mid,
+            });
+        }
+    }, [userName, mid]);
+
+    useEffect(() => {
         if (audioTrack) {
-            if (isMuted) {
+            if (!isMuted) {
                 audioTrack.enabled = true;
+                addUpdateAudioVideoSenders(audioTrack, rtpAudioSenders);
             } else {
                 audioTrack.enabled = false;
+                removeAudioVideoSenders(rtpAudioSenders);
             }
             setAudioTrack(audioTrack);
         }
@@ -119,8 +134,10 @@ function App() {
         if (myVideoRef.current) {
             if (videoTrack) {
                 myVideoRef.current.srcObject = new MediaStream([videoTrack]);
+                addUpdateAudioVideoSenders(videoTrack, rtpVideoSenders);
             } else {
                 myVideoRef.current.srcObject = null;
+                removeAudioVideoSenders(rtpVideoSenders);
             }
         }
     }, [videoTrack]);
@@ -128,6 +145,7 @@ function App() {
     const clearCurrentVideoStream = () => {
         videoTrack?.stop();
         setVideoTrack(null);
+        removeAudioVideoSenders(rtpVideoSenders);
     };
 
     async function startAudio() {
@@ -159,7 +177,7 @@ function App() {
         };
         connection.onnegotiationneeded = async function (event) {
             console.log("onnegotiationneeded", event);
-            await _createOffer(connectionId);
+            await createOffer(connectionId);
         };
         // New remote media stream was added
         connection.ontrack = function (event) {
@@ -186,7 +204,7 @@ function App() {
                 _remoteVideoPlayer.load();
             } else if (event.track.kind == "audio") {
                 const _remoteAudioPlayer = document.getElementById(
-                    "a_" + connectionId
+                    "audio-" + connectionId
                 ) as HTMLAudioElement;
                 remoteAudioStreams[connectionId]
                     .getVideoTracks()
@@ -208,22 +226,48 @@ function App() {
             videoState == VideoState.ScreenShare
         ) {
             if (videoTrack) {
-                // AddUpdateAudioVideoSenders(_videoCamSSTrack, _rtpVideoSenders);
+                addUpdateAudioVideoSenders(videoTrack, rtpVideoSenders);
             }
         }
 
         return connection;
     }
+    async function createOffer(connId: string) {
+        const connection = connectedPeers[connId];
+        const offer = await connection.createOffer();
+        await connection.setLocalDescription(offer);
+        sendDataToConnection(
+            JSON.stringify({ offer: connection.localDescription }),
+            connId
+        );
+    }
 
-    async function addUpdateAudioVideoSenders(track: MediaStreamTrack, rtpSenders) {
-        if (isConnectionAvailable(connectedPeers[con_id])) {
-            if (rtpSenders[con_id] && rtpSenders[con_id].track) {
-                rtpSenders[con_id].replaceTrack(track);
-            } else {
-                rtpSenders[con_id] = peers_conns[con_id].addTrack(track);
+    async function addUpdateAudioVideoSenders(
+        track: MediaStreamTrack,
+        rtpSenders: rtpSenders
+    ) {
+        for (const connId in connectedPeersIds) {
+            if (isConnectionAvailable(connectedPeers[connId])) {
+                const sender = rtpSenders[connId];
+                if (sender && sender.track) {
+                    sender.replaceTrack(track);
+                } else {
+                    rtpSenders[connId] = connectedPeers[connId].addTrack(track);
+                }
             }
         }
     }
+
+    async function removeAudioVideoSenders(rtpSenders: rtpSenders) {
+        for (const connId in connectedPeersIds) {
+            const sender = rtpSenders[connId];
+            if (sender && isConnectionAvailable(connectedPeers[connId])) {
+                connectedPeers[connId].removeTrack(sender);
+                rtpSenders[connId] = null;
+            }
+        }
+    }
+
     const acceptData = async (msg: string, fromConnectId: string) => {
         const message = JSON.parse(msg);
 
@@ -323,13 +367,13 @@ function App() {
                                         <video
                                             autoPlay
                                             muted
-                                            id={"video-" + user.user_id}
+                                            id={"video-" + user.id}
                                         ></video>
                                         <audio
                                             autoPlay
                                             controls
                                             style={{ display: "none" }}
-                                            id={"audio-" + user.user_id}
+                                            id={"audio-" + user.id}
                                         ></audio>
                                     </div>
                                 );
