@@ -23,7 +23,7 @@ import {
 } from "./RTC";
 
 type IUser = {
-    id: string;
+    connectionId: string;
     userName: string;
 };
 enum VideoState {
@@ -45,32 +45,62 @@ function App() {
     const navigate = useNavigate();
 
     useEffect(() => {
+        socket.connect();
+
+        return () => {
+            socket.disconnect();
+        };
+    }, []);
+
+    useEffect(() => {
         const urlParams = new URLSearchParams(window.location.search);
         const mid = urlParams.get("mid");
         const uid = urlParams.get("uid");
         if (uid) setUsername(uid);
         if (mid) setMid(mid);
-        socket.on("connect", () => {
-            if (socket.connected) {
-                if (userName && mid) {
-                    socket.emit("newUser", {
-                        userName,
-                        mid,
-                    });
-                }
-            }
-        });
+        // socket.on("connect", () => {
+        //     console.log("dsfsdf");
+
+        //     if (socket.connected) {
+        //         socket.emit("newUser", {
+        //             userName,
+        //             mid,
+        //         });
+        //     }
+        // });
 
         socket.on("userConnected", (data: IUser[]) => {
             setUsers(data);
+            // console.log("userConnected", data);
+
             data.forEach((u) => {
-                createConnection(u.id);
+                createConnection(u.connectionId);
             });
+        });
+
+        socket.on("exchangeData", async (data) => {
+            await acceptData(data.message, data.from_connid);
+        });
+
+        socket.on("informAboutNewConnection", (data: IUser) => {
+            // console.log("informAboutNewConnection");
+
+            setUsers((prev) => [
+                ...prev.filter((u) => u.connectionId !== data.connectionId),
+                data,
+            ]);
+            createConnection(data.connectionId);
+        });
+
+        socket.on("informAboutConnectionEnd", (connId: string) => {
+            setUsers((prev) => prev.filter((u) => u.connectionId !== connId));
         });
     }, []);
 
     useEffect(() => {
         if (userName && mid) {
+            // console.log("newUser");
+
             socket.emit("newUser", {
                 userName,
                 mid,
@@ -163,6 +193,8 @@ function App() {
 
         connection.onicecandidate = function (event) {
             if (event.candidate) {
+                console.log("event.candidate");
+
                 sendDataToConnection(
                     JSON.stringify({ iceCandidate: event.candidate }),
                     connectionId
@@ -220,6 +252,7 @@ function App() {
 
         connectedPeersIds.push(connectionId);
         connectedPeers[connectionId] = connection;
+        // console.log(connectedPeers);
 
         if (
             videoState == VideoState.Camera ||
@@ -236,6 +269,8 @@ function App() {
         const connection = connectedPeers[connId];
         const offer = await connection.createOffer();
         await connection.setLocalDescription(offer);
+        console.log(offer);
+
         sendDataToConnection(
             JSON.stringify({ offer: connection.localDescription }),
             connId
@@ -362,18 +397,18 @@ function App() {
                             </div>
                             {users.map((user) => {
                                 return (
-                                    <div>
+                                    <div key={user.connectionId}>
                                         <h2>{user.userName}</h2>
                                         <video
                                             autoPlay
                                             muted
-                                            id={"video-" + user.id}
+                                            id={"video-" + user.connectionId}
                                         ></video>
                                         <audio
                                             autoPlay
                                             controls
                                             style={{ display: "none" }}
-                                            id={"audio-" + user.id}
+                                            id={"audio-" + user.connectionId}
                                         ></audio>
                                     </div>
                                 );
