@@ -1,11 +1,3 @@
 export function isValidHttpUrl(string: string) {
-    let url;
-
-    try {
-        url = new URL(string);
-    } catch (_) {
-        return false;
-    }
-
-    return url.protocol === "http:" || url.protocol === "https:";
+    return string.slice(0, 4) === "http:" || string.slice(0, 5) === "https:";
 }
