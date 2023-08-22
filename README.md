@@ -1,5 +1,5 @@
 
-# What does this do?
+# What does this do? 
 
 - It creates a meeting URL for you and allows multiple people to join that meeting. 
 - It does peer to peer communication for audio/video. 
